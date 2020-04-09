@@ -4,14 +4,16 @@ from flair.datasets import CSVClassificationCorpus
 from flair.embeddings import WordEmbeddings, FlairEmbeddings, DocumentLSTMEmbeddings
 from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
-import os
+from os import path
+from chardet import detect
 
 
 def parse_comment(comment):
     return comment.replace(r'\n', ' ')\
         .replace(r'\u0026', '&')\
         .replace(r'\u200d', ' ')\
-        .replace(r'\u003d', '=')
+        .replace(r'\u003d', '=')\
+        .replace('👍', '')
 
 
 def validate_rating(rating):
@@ -22,7 +24,7 @@ def validate_rating(rating):
 
 
 def validate_comment(comment):
-    return True
+    return 'ascii' in str(detect(comment.encode("utf-8")))
 
 
 def create_file_with_data(file_path, data_set, number_of_elements):
@@ -34,6 +36,7 @@ def create_file_with_data(file_path, data_set, number_of_elements):
 
 def pre_process():
     data_set = set()
+    filtered_data_set = set()
     with open('input/result.csv', mode='r', encoding="utf-8") as file:
         reader = csv.reader(file, delimiter='\t', quotechar='"')
         for row in reader:
@@ -42,14 +45,17 @@ def pre_process():
                 comment = row[1]
                 if validate_rating(rating) and validate_comment(comment):
                     data_set.add((rating, comment))
+                else:
+                    filtered_data_set.add((rating, comment))
     data_size = len(data_set)
     create_file_with_data('data/dev.csv', data_set, int(data_size * 0.1))
     create_file_with_data('data/test.csv', data_set, int(data_size * 0.1))
     create_file_with_data('data/train.csv', data_set, len(data_set))
+    create_file_with_data('data/filtered.csv', filtered_data_set, len(filtered_data_set))
 
 
 if __name__ == '__main__':
-    if not os.path.isfile('data/dev.csv') or not os.path.isfile('data/test.csv') or not os.path.isfile('data/train.csv'):
+    if not path.isfile('data/dev.csv') or not path.isfile('data/test.csv') or not path.isfile('data/train.csv'):
         pre_process()
 
     corpus = CSVClassificationCorpus('data',
@@ -61,7 +67,7 @@ if __name__ == '__main__':
                                      train_file='train.csv'
                                      ).downsample(0.1)
 
-    if os.path.isfile('results/checkpoint.pt'):
+    if path.isfile('results/checkpoint.pt'):
         print("Starting from checkpoint")
         trainer = ModelTrainer.load_checkpoint('results/checkpoint.pt', corpus)
     else:
