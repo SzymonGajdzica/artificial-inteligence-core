@@ -1,4 +1,5 @@
 import csv
+from collections import defaultdict
 
 from flair.datasets import CSVClassificationCorpus
 from flair.embeddings import WordEmbeddings, FlairEmbeddings, DocumentRNNEmbeddings
@@ -13,10 +14,14 @@ def parse_comment(comment):
     return emoji.get_emoji_regexp().sub(u'', comment)\
         .replace(r'\n', ' ')\
         .replace(r'\u0026', '&')\
-        .replace(r'\u200d', ' ')\
+        .replace(r'\u200d', '')\
         .replace(r'\u003d', '=')\
         .replace(r'\t', ' ')\
-        .replace('\t', ' ')
+        .replace('\t', ' ')\
+        .replace('★', '')\
+        .replace('♡', '')\
+        .replace('️', ' ')\
+        .replace('☆', '')
 
 
 def validate_rating(rating):
@@ -27,7 +32,7 @@ def validate_rating(rating):
 
 
 def validate_comment(comment):
-    return 'ascii' in str(detect(comment.encode("utf-8")))
+    return 'ascii' in str(detect(comment.encode("utf-8"))) and len(comment) >= 3
 
 
 def create_file_with_data(file_path, data_set, number_of_elements):
@@ -40,34 +45,40 @@ def create_file_with_data(file_path, data_set, number_of_elements):
 def pre_process():
     data_set = set()
     filtered_data_set = set()
-    with open('input/result.csv', mode='r', encoding="utf-8") as file:
+    labels_counter = defaultdict(lambda: 0)
+    with open('input/result.tsv', mode='r', encoding="utf-8") as file:
         reader = csv.reader(file, delimiter='\t', quotechar='"')
         for row in reader:
             if len(row) == 2:
                 rating = row[0]
                 comment = parse_comment(row[1])
+                labels_counter[rating] = labels_counter[rating] + 1
                 if validate_rating(rating) and validate_comment(comment):
                     data_set.add((rating, comment))
                 else:
                     filtered_data_set.add((rating, comment))
     data_size = len(data_set)
-    create_file_with_data('data/dev.csv', data_set, int(data_size * 0.1))
-    create_file_with_data('data/test.csv', data_set, int(data_size * 0.1))
-    create_file_with_data('data/train.csv', data_set, len(data_set))
-    create_file_with_data('data/filtered.csv', filtered_data_set, len(filtered_data_set))
+    with open('data/stats.tsv', mode='w', encoding="utf-8") as file:
+        file.write('{0}\t{1}\t{2}%\n'.format('label', 'number_of_elements', 'percent_of_all_elements'))
+        for key, value in sorted(labels_counter.items(), key=lambda item: item[0]):
+            file.write('{0}\t{1}\t{2}%\n'.format(key, value, int((value / float(data_size) * 100))))
+    create_file_with_data('data/dev.tsv', data_set, int(data_size * 0.1))
+    create_file_with_data('data/test.tsv', data_set, int(data_size * 0.1))
+    create_file_with_data('data/train.tsv', data_set, len(data_set))
+    create_file_with_data('data/filtered.tsv', filtered_data_set, len(filtered_data_set))
 
 
 if __name__ == '__main__':
-    if not path.isfile('data/dev.csv') or not path.isfile('data/test.csv') or not path.isfile('data/train.csv'):
+    if not path.isfile('data/dev.tsv') or not path.isfile('data/test.tsv') or not path.isfile('data/train.tsv'):
         pre_process()
 
     corpus = CSVClassificationCorpus('data',
                                      {0: "label", 1: "text"},
                                      skip_header=False,
                                      delimiter='\t',
-                                     test_file='test.csv',
-                                     dev_file='dev.csv',
-                                     train_file='train.csv'
+                                     test_file='test.tsv',
+                                     dev_file='dev.tsv',
+                                     train_file='train.tsv'
                                      ).downsample(1.0)
 
     if path.isfile('results/checkpoint.pt'):
