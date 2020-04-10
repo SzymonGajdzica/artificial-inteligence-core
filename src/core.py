@@ -1,19 +1,22 @@
 import csv
 
 from flair.datasets import CSVClassificationCorpus
-from flair.embeddings import WordEmbeddings, FlairEmbeddings, DocumentLSTMEmbeddings
+from flair.embeddings import WordEmbeddings, FlairEmbeddings, DocumentRNNEmbeddings
 from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
 from os import path
 from chardet import detect
+import emoji
 
 
 def parse_comment(comment):
-    return comment.replace(r'\n', ' ')\
+    return emoji.get_emoji_regexp().sub(u'', comment)\
+        .replace(r'\n', ' ')\
         .replace(r'\u0026', '&')\
         .replace(r'\u200d', ' ')\
         .replace(r'\u003d', '=')\
-        .replace('👍', '')
+        .replace(r'\t', ' ')\
+        .replace('\t', ' ')
 
 
 def validate_rating(rating):
@@ -41,8 +44,8 @@ def pre_process():
         reader = csv.reader(file, delimiter='\t', quotechar='"')
         for row in reader:
             if len(row) == 2:
-                rating = parse_comment(row[0])
-                comment = row[1]
+                rating = row[0]
+                comment = parse_comment(row[1])
                 if validate_rating(rating) and validate_comment(comment):
                     data_set.add((rating, comment))
                 else:
@@ -65,7 +68,7 @@ if __name__ == '__main__':
                                      test_file='test.csv',
                                      dev_file='dev.csv',
                                      train_file='train.csv'
-                                     ).downsample(0.1)
+                                     ).downsample(1.0)
 
     if path.isfile('results/checkpoint.pt'):
         print("Starting from checkpoint")
@@ -75,11 +78,11 @@ if __name__ == '__main__':
                            FlairEmbeddings('news-forward'),
                            FlairEmbeddings('news-backward')
                            ]
-        document_embeddings = DocumentLSTMEmbeddings(word_embeddings,
-                                                     hidden_size=512,
-                                                     reproject_words=True,
-                                                     reproject_words_dimension=256,
-                                                     )
+        document_embeddings = DocumentRNNEmbeddings(word_embeddings,
+                                                    hidden_size=512,
+                                                    reproject_words=True,
+                                                    reproject_words_dimension=256
+                                                    )
         classifier = TextClassifier(document_embeddings, label_dictionary=corpus.make_label_dictionary())
         trainer = ModelTrainer(classifier, corpus)
 
@@ -88,7 +91,6 @@ if __name__ == '__main__':
                   mini_batch_size=32,
                   anneal_factor=0.5,
                   patience=3,
-                  max_epochs=10,
-                  checkpoint=True,
-                  embeddings_storage_mode='gpu'
+                  max_epochs=5,
+                  checkpoint=True
                   )
