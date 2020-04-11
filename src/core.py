@@ -21,7 +21,9 @@ def parse_comment(comment):
         .replace('★', '')\
         .replace('♡', '')\
         .replace('️', ' ')\
-        .replace('☆', '')
+        .replace('☆', '')\
+        .replace('  ', ' ')\
+        .strip()
 
 
 def validate_rating(rating):
@@ -57,15 +59,19 @@ def pre_process():
                     data_set.add((rating, comment))
                 else:
                     filtered_data_set.add((rating, comment))
-    data_size = len(data_set)
+
     with open('data/stats.tsv', mode='w', encoding="utf-8") as file:
         file.write('{0}\t{1}\t{2}%\n'.format('label', 'number_of_elements', 'percent_of_all_elements'))
         for key, value in sorted(labels_counter.items(), key=lambda item: item[0]):
-            file.write('{0}\t{1}\t{2}%\n'.format(key, value, int((value / float(data_size) * 100))))
+            file.write('{0}\t{1}\t{2}%\n'.format(key, value, int((value / float(len(data_set)) * 100.0))))
+
+    create_file_with_data('data/valid.tsv', set(data_set), len(data_set))
+    create_file_with_data('data/filtered.tsv', filtered_data_set, len(filtered_data_set))
+
+    data_size = len(data_set)
     create_file_with_data('data/dev.tsv', data_set, int(data_size * 0.1))
     create_file_with_data('data/test.tsv', data_set, int(data_size * 0.1))
     create_file_with_data('data/train.tsv', data_set, len(data_set))
-    create_file_with_data('data/filtered.tsv', filtered_data_set, len(filtered_data_set))
 
 
 if __name__ == '__main__':
