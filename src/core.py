@@ -34,7 +34,7 @@ def validate_rating(rating):
 
 
 def validate_comment(comment):
-    return 3 <= len(comment) <= 600 and 'ascii' in str(detect(comment.encode("utf-8")))
+    return 3 <= len(comment) <= 300 and 'ascii' in str(detect(comment.encode("utf-8")))
 
 
 def create_file_with_data(file_path, data_set, number_of_elements):
@@ -81,10 +81,11 @@ if __name__ == '__main__':
     corpus = CSVClassificationCorpus(data_folder='data',
                                      column_name_map={0: "label", 1: "text"},
                                      delimiter='\t',
+                                     skip_header=False,
                                      test_file='test.tsv',
                                      dev_file='dev.tsv',
                                      train_file='train.tsv'
-                                     ).downsample(0.1)
+                                     )
 
     if path.isfile('results/checkpoint.pt'):
         print("Starting from checkpoint")
@@ -94,7 +95,11 @@ if __name__ == '__main__':
                            FlairEmbeddings('news-forward'),
                            FlairEmbeddings('news-backward')
                            ]
-        document_embeddings = DocumentRNNEmbeddings(embeddings=word_embeddings)
+        document_embeddings = DocumentRNNEmbeddings(embeddings=word_embeddings,
+                                                    hidden_size=512,
+                                                    reproject_words=True,
+                                                    reproject_words_dimension=256
+                                                    )
         classifier = TextClassifier(document_embeddings=document_embeddings,
                                     label_dictionary=corpus.make_label_dictionary()
                                     )
@@ -103,6 +108,8 @@ if __name__ == '__main__':
     trainer.train(base_path='results',
                   learning_rate=0.7,
                   mini_batch_size=16,
-                  max_epochs=20,
+                  anneal_factor=0.5,
+                  patience=3,
+                  max_epochs=30,
                   checkpoint=True
                   )
