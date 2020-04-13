@@ -34,7 +34,7 @@ def validate_rating(rating):
 
 
 def validate_comment(comment):
-    return 'ascii' in str(detect(comment.encode("utf-8"))) and len(comment) >= 3
+    return 3 <= len(comment) <= 600 and 'ascii' in str(detect(comment.encode("utf-8")))
 
 
 def create_file_with_data(file_path, data_set, number_of_elements):
@@ -78,14 +78,13 @@ if __name__ == '__main__':
     if not path.isfile('data/dev.tsv') or not path.isfile('data/test.tsv') or not path.isfile('data/train.tsv'):
         pre_process()
 
-    corpus = CSVClassificationCorpus('data',
-                                     {0: "label", 1: "text"},
-                                     skip_header=False,
+    corpus = CSVClassificationCorpus(data_folder='data',
+                                     column_name_map={0: "label", 1: "text"},
                                      delimiter='\t',
                                      test_file='test.tsv',
                                      dev_file='dev.tsv',
                                      train_file='train.tsv'
-                                     ).downsample(1.0)
+                                     ).downsample(0.1)
 
     if path.isfile('results/checkpoint.pt'):
         print("Starting from checkpoint")
@@ -95,19 +94,15 @@ if __name__ == '__main__':
                            FlairEmbeddings('news-forward'),
                            FlairEmbeddings('news-backward')
                            ]
-        document_embeddings = DocumentRNNEmbeddings(word_embeddings,
-                                                    hidden_size=512,
-                                                    reproject_words=True,
-                                                    reproject_words_dimension=256
-                                                    )
-        classifier = TextClassifier(document_embeddings, label_dictionary=corpus.make_label_dictionary())
+        document_embeddings = DocumentRNNEmbeddings(embeddings=word_embeddings)
+        classifier = TextClassifier(document_embeddings=document_embeddings,
+                                    label_dictionary=corpus.make_label_dictionary()
+                                    )
         trainer = ModelTrainer(classifier, corpus)
 
-    trainer.train('results',
+    trainer.train(base_path='results',
                   learning_rate=0.7,
-                  mini_batch_size=32,
-                  anneal_factor=0.5,
-                  patience=3,
-                  max_epochs=5,
+                  mini_batch_size=16,
+                  max_epochs=20,
                   checkpoint=True
                   )
