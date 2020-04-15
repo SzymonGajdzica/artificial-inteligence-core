@@ -1,87 +1,36 @@
 import csv
-from collections import defaultdict
+from os import path
 
 from flair.datasets import CSVClassificationCorpus
 from flair.embeddings import WordEmbeddings, FlairEmbeddings, DocumentRNNEmbeddings
 from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
-from os import path
-from chardet import detect
-import emoji
+
+from src.pre_process import pre_process
 
 
-def parse_comment(comment):
-    return emoji.get_emoji_regexp().sub(u'', comment)\
-        .replace(r'\n', ' ')\
-        .replace(r'\u0026', '&')\
-        .replace(r'\u200d', '')\
-        .replace(r'\u003d', '=')\
-        .replace(r'\t', ' ')\
-        .replace('\t', ' ')\
-        .replace('★', '')\
-        .replace('♡', '')\
-        .replace('️', ' ')\
-        .replace('☆', '')\
-        .replace('  ', ' ')\
-        .strip()
-
-
-def validate_rating(rating):
-    try:
-        return 5 >= int(rating) >= 1
-    except ValueError:
-        return False
-
-
-def validate_comment(comment):
-    return 3 <= len(comment) <= 300 and 'ascii' in str(detect(comment.encode("utf-8")))
-
-
-def create_file_with_data(file_path, data_set, number_of_elements):
-    with open(file_path, mode='w', encoding="utf-8") as file:
-        for x in range(number_of_elements):
-            rating, comment = data_set.pop()
-            file.write('{0}\t{1}\n'.format(rating, comment))
-
-
-def pre_process():
-    data_set = set()
-    filtered_data_set = set()
-    labels_counter = defaultdict(lambda: 0)
-    with open('input/result.tsv', mode='r', encoding="utf-8") as file:
-        reader = csv.reader(file, delimiter='\t', quotechar='"')
+def load_weights():
+    weights = dict()
+    if not path.isfile('data/valid_stats.tsv'):
+        return weights
+    with open('data/valid_stats.tsv', mode='r', encoding="utf-8") as file:
+        reader = csv.DictReader(file, delimiter='\t')
         for row in reader:
-            if len(row) == 2:
-                rating = row[0]
-                comment = parse_comment(row[1])
-                labels_counter[rating] = labels_counter[rating] + 1
-                if validate_rating(rating) and validate_comment(comment):
-                    data_set.add((rating, comment))
-                else:
-                    filtered_data_set.add((rating, comment))
-
-    with open('data/stats.tsv', mode='w', encoding="utf-8") as file:
-        file.write('{0}\t{1}\t{2}%\n'.format('label', 'number_of_elements', 'percent_of_all_elements'))
-        for key, value in sorted(labels_counter.items(), key=lambda item: item[0]):
-            file.write('{0}\t{1}\t{2}%\n'.format(key, value, int((value / float(len(data_set)) * 100.0))))
-
-    create_file_with_data('data/valid.tsv', set(data_set), len(data_set))
-    create_file_with_data('data/filtered.tsv', filtered_data_set, len(filtered_data_set))
-
-    data_size = len(data_set)
-    create_file_with_data('data/dev.tsv', data_set, int(data_size * 0.1))
-    create_file_with_data('data/test.tsv', data_set, int(data_size * 0.1))
-    create_file_with_data('data/train.tsv', data_set, len(data_set))
+            weights[row['label']] = 1.0 / float(row['part_of_all_elements'])
+    print('weights', weights)
+    return weights
 
 
 if __name__ == '__main__':
     if not path.isfile('data/dev.tsv') or not path.isfile('data/test.tsv') or not path.isfile('data/train.tsv'):
-        pre_process()
+        pre_process(down_sample=0.2,
+                    equal_sets=True
+                    )
 
     corpus = CSVClassificationCorpus(data_folder='data',
                                      column_name_map={0: "label", 1: "text"},
                                      delimiter='\t',
-                                     skip_header=False,
+                                     skip_header=True,
                                      test_file='test.tsv',
                                      dev_file='dev.tsv',
                                      train_file='train.tsv'
@@ -100,14 +49,16 @@ if __name__ == '__main__':
                                                     reproject_words=True,
                                                     reproject_words_dimension=256
                                                     )
+        weights = load_weights()
         classifier = TextClassifier(document_embeddings=document_embeddings,
-                                    label_dictionary=corpus.make_label_dictionary()
+                                    label_dictionary=corpus.make_label_dictionary(),
+                                    loss_weights=weights
                                     )
         trainer = ModelTrainer(classifier, corpus)
 
     trainer.train(base_path='results',
                   learning_rate=0.7,
-                  mini_batch_size=16,
+                  mini_batch_size=32,
                   anneal_factor=0.5,
                   patience=3,
                   max_epochs=30,
