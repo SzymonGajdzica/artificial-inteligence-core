@@ -10,7 +10,7 @@ from src.pre_process import pre_process
 
 
 def load_weights():
-    weights = dict()
+    weights = {}
     if not path.isfile('data/valid_stats.tsv'):
         return weights
     with open('data/valid_stats.tsv', mode='r', encoding="utf-8") as file:
@@ -23,7 +23,7 @@ def load_weights():
 
 if __name__ == '__main__':
     if not path.isfile('data/dev.tsv') or not path.isfile('data/test.tsv') or not path.isfile('data/train.tsv'):
-        pre_process(down_sample=0.2,
+        pre_process(down_sample=1.0,
                     equal_sets=True
                     )
 
@@ -47,7 +47,8 @@ if __name__ == '__main__':
         document_embeddings = DocumentRNNEmbeddings(embeddings=word_embeddings,
                                                     hidden_size=512,
                                                     reproject_words=True,
-                                                    reproject_words_dimension=256
+                                                    reproject_words_dimension=256,
+                                                    rnn_type="LSTM"
                                                     )
         weights = load_weights()
         classifier = TextClassifier(document_embeddings=document_embeddings,
@@ -60,7 +61,7 @@ if __name__ == '__main__':
                   learning_rate=0.7,
                   mini_batch_size=32,
                   anneal_factor=0.5,
-                  patience=3,
-                  max_epochs=30,
+                  patience=2,
+                  max_epochs=20,
                   checkpoint=True
                   )

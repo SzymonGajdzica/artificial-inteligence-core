@@ -49,19 +49,17 @@ def process_and_filter_data(raw_data_set, down_sample, equal_sets):
             else:
                 filtered_data_set.add((rating, parsed_comment))
     if equal_sets:
-        minimal_size = None
-        for data_set in data_dictionary_sets.values():
-            if minimal_size is None or len(data_set) < minimal_size:
-                minimal_size = len(data_set)
-        for key in data_dictionary_sets.keys():
+        minimal_size = min((len(data_set) for data_set in data_dictionary_sets.values()))
+        for key in data_dictionary_sets:
             data_dictionary_sets[key] = set(list(data_dictionary_sets[key])[:minimal_size])
-    for key in data_dictionary_sets.keys():
+    for key in data_dictionary_sets:
         data_dictionary_sets[key] = set(
             list(data_dictionary_sets[key])[:int(len(data_dictionary_sets[key]) * down_sample)])
-    data_list = list()
-    for single_data_set in data_dictionary_sets.values():
-        data_list.extend(single_data_set)
-    shuffle(data_list)
+    data_list = [
+        single_data_set_element
+        for single_data_set in data_dictionary_sets.values()
+        for single_data_set_element in single_data_set
+    ]
     shuffle(data_list)
     return data_list, list(filtered_data_set)
 

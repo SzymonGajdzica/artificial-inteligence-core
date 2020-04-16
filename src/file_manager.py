@@ -3,7 +3,7 @@ import csv
 
 def create_file_with_data(file_path, data_set):
     with open(file_path, mode='w', encoding="utf-8") as file:
-        file.write('{0}\t{1}\n'.format('rating', 'comment'))
+        file.write('%s\t%s\n' % ('rating', 'comment'))
         for rating, comment in data_set:
             file.write('{0}\t{1}\n'.format(rating, comment))
 
